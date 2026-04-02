@@ -1,0 +1,79 @@
+{
+  "title": "MyENGIE Romania",
+
+  "config": {
+    "flow_title": "MyENGIE Romania",
+
+    "step": {
+      "user": {
+        "title": "Connect to MyENGIE Romania account",
+        "description": "Enter your MyENGIE Romania email and password.",
+        "data": {
+          "username": "Email address",
+          "password": "Password",
+          "update_interval": "Update interval (seconds)"
+        }
+      }
+    },
+
+    "error": {
+      "auth_failed": "Authentication failed. Please check your email and password.",
+      "maintenance": "The MyENGIE Romania server is currently under maintenance. Please try again later.",
+      "network_error": "Cannot connect to the MyENGIE Romania server. Please check your internet connection.",
+      "unknown_error": "An unexpected error occurred while connecting to MyENGIE Romania. Please try again later.",
+      "no_data": "Authentication was successful, but no data was found for this account."
+    },
+
+    "abort": {
+      "already_configured": "This MyENGIE Romania account is already configured."
+    }
+  },
+
+  "options": {
+    "flow_title": "MyENGIE Romania settings",
+
+    "step": {
+      "init": {
+        "title": "MyENGIE Romania Settings",
+        "description": "Select the category to manage",
+        "menu_options": {
+          "settings": "Account Settings",
+          "licenta": "License"
+        }
+      },
+
+      "settings": {
+        "title": "Account settings",
+        "description": "Update your credentials and refresh interval.",
+        "data": {
+          "username": "Email address",
+          "password": "Password",
+          "update_interval": "Update interval (seconds)"
+        }
+      },
+
+      "licenta": {
+        "title": "MyENGIE Romania License",
+        "description": "{license_status}\n\nEnter your license key to activate or renew the integration.",
+        "data": {
+          "license_key": "License Key"
+        }
+      }
+    },
+
+    "error": {
+      "auth_failed": "Authentication failed with the provided credentials.",
+      "maintenance": "The MyENGIE Romania server is currently under maintenance. Please try again later.",
+      "network_error": "Cannot connect to the MyENGIE Romania server. Please check your internet connection.",
+      "unknown_error": "An unexpected error occurred. Please try again later.",
+      "no_data": "No data was found for this account.",
+      "license_key_empty": "Please enter a license key.",
+      "license_key_invalid": "Invalid license key. Check the format and try again.",
+      "license_already_used": "This license key has already been used on another installation.",
+      "license_key_expired": "This license key has expired.",
+      "license_fingerprint_mismatch": "This license key is bound to a different installation.",
+      "license_network_error": "Cannot connect to the license server. Check your internet connection.",
+      "license_server_error": "License server error. Please try again later."
+    }
+  }
+}

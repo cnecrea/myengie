@@ -1,0 +1,79 @@
+{
+  "title": "MyENGIE România",
+
+  "config": {
+    "flow_title": "MyENGIE România",
+
+    "step": {
+      "user": {
+        "title": "Conectare la contul MyENGIE România",
+        "description": "Introduceți adresa de email și parola contului MyENGIE România.",
+        "data": {
+          "username": "Adresă de email",
+          "password": "Parolă",
+          "update_interval": "Interval de actualizare (secunde)"
+        }
+      }
+    },
+
+    "error": {
+      "auth_failed": "Autentificare eșuată. Verificați adresa de email și parola.",
+      "maintenance": "Serverul MyENGIE România este momentan în mentenanță. Vă rugăm să încercați mai târziu.",
+      "network_error": "Nu se poate conecta la serverul MyENGIE România. Verificați conexiunea la internet.",
+      "unknown_error": "A apărut o eroare neașteptată la conectarea cu MyENGIE România. Încercați din nou mai târziu.",
+      "no_data": "Autentificare reușită, dar nu au fost găsite date asociate acestui cont."
+    },
+
+    "abort": {
+      "already_configured": "Acest cont MyENGIE România este deja configurat."
+    }
+  },
+
+  "options": {
+    "flow_title": "Setări MyENGIE România",
+
+    "step": {
+      "init": {
+        "title": "Setări MyENGIE România",
+        "description": "Selectează categoria de gestionat",
+        "menu_options": {
+          "settings": "Setări cont",
+          "licenta": "Licență"
+        }
+      },
+
+      "settings": {
+        "title": "Setări cont",
+        "description": "Actualizați credențialele și intervalul de actualizare.",
+        "data": {
+          "username": "Adresă de email",
+          "password": "Parolă",
+          "update_interval": "Interval de actualizare (secunde)"
+        }
+      },
+
+      "licenta": {
+        "title": "Licență MyENGIE România",
+        "description": "{license_status}\n\nIntrodu cheia de licență pentru a activa sau reînnoi integrarea.",
+        "data": {
+          "license_key": "Cheie de licență"
+        }
+      }
+    },
+
+    "error": {
+      "auth_failed": "Autentificare eșuată cu credențialele introduse.",
+      "maintenance": "Serverul MyENGIE România este momentan în mentenanță. Încercați mai târziu.",
+      "network_error": "Nu se poate conecta la serverul MyENGIE România. Verificați conexiunea la internet.",
+      "unknown_error": "A apărut o eroare neașteptată. Încercați din nou mai târziu.",
+      "no_data": "Nu au fost găsite date asociate acestui cont.",
+      "license_key_empty": "Introdu o cheie de licență.",
+      "license_key_invalid": "Cheie de licență invalidă. Verifică formatul și încearcă din nou.",
+      "license_already_used": "Această cheie de licență a fost deja folosită pe altă instalare.",
+      "license_key_expired": "Această cheie de licență a expirat.",
+      "license_fingerprint_mismatch": "Această cheie de licență este asociată altei instalări.",
+      "license_network_error": "Nu se poate conecta la serverul de licențe. Verifică conexiunea la internet.",
+      "license_server_error": "Eroare server licențe. Încearcă din nou mai târziu."
+    }
+  }
+}

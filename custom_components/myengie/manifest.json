@@ -1,0 +1,14 @@
+{
+  "domain": "myengie",
+  "name": "MyENGIE România",
+  "codeowners": [
+    "@cnecrea"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/cnecrea/myengie",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/cnecrea/myengie/issues",
+  "requirements": ["cryptography>=41.0.0"],
+  "version": "0.0.0"
+}
