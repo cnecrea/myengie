@@ -91,10 +91,10 @@
       "open_issues": 0
     },
     "2026-04-02": {
-      "stars": 0,
+      "stars": 2,
       "forks": 0,
       "watchers": 0,
-      "open_issues": 1,
+      "open_issues": 2,
       "referrers": [
         {
           "sursa": "github.com",
@@ -105,7 +105,8 @@
     }
   },
   "releases": {
+    "1.1.0": 0,
     "1.0.0": 1
   },
-  "ultima_actualizare": "2026-04-02T07:00:56Z"
+  "ultima_actualizare": "2026-04-02T09:48:40Z"
 }
