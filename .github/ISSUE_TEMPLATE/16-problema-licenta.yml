@@ -29,7 +29,7 @@ body:
       label: Integrarea vizată
       description: Pentru care integrare raportați problema?
       options:
-        - Vehicule 
+        - MyENGIE România 
     validations:
       required: true
 
