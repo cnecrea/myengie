@@ -909,7 +909,10 @@ class MyEngieConsumGraficSensor(MyEngieBaseSensor):
         self._attr_unique_id = f"{DOMAIN}_{poc}_{div_short}_consum_grafic"
         self._attr_name = "Arhivă consum lunar"
         self._custom_entity_id = f"sensor.{DOMAIN}_{poc}_{div_short}_consum_grafic"
-        self._attr_native_unit_of_measurement = _unit_for_division(div_short)
+        # API returnează consum în kWh pentru AMBELE (gaz + elec)
+        # Gaz: kWh = m³ × putere calorifică × coeficient corecție
+        # Confirmat din APK ConsumptionGraphWidgetKt.java: R.string.unit_kwh mereu
+        self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
 
     def _current_year_entries(self) -> list[dict]:
         """Returnează doar intrările din consumption_graph pentru anul curent."""
@@ -953,7 +956,8 @@ class MyEngieConsumGraficSensor(MyEngieBaseSensor):
         if not entries:
             return None
 
-        unit = "m³" if self._div_short == "gaz" else "kWh"
+        # API returnează consum în kWh pentru ambele (gaz + elec)
+        unit = "kWh"
         attrs: dict[str, Any] = {}
 
         for e in entries:
