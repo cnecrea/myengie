@@ -15,7 +15,7 @@ HEAVY_UPDATE_MULTIPLIER = 6         # Heavy refresh la fiecare al 6-lea ciclu (�
 # ──────────────────────────────────────────────
 CONF_LICENSE_KEY = "license_key"
 LICENSE_DATA_KEY = "myengie_license_manager"
-LICENSE_PURCHASE_URL = "https://hubinteligent.org/licenta/myengie"
+LICENSE_PURCHASE_URL = "https://hubinteligent.org/donate?ref=myengie"
 
 # ──────────────────────────────────────────────
 # Token store (între config_flow și __init__)
