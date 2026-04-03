@@ -91,7 +91,7 @@ Autentificarea se face cu email + parolă (POST form-urlencoded). Token-ul JWT a
 
 ### Pasul 2 — Licență
 
-Integrarea necesită o licență validă. Poți achiziționa una de la [hubinteligent.org/licenta/myengie](https://hubinteligent.org/licenta/myengie). Licența se introduce din **OptionsFlow** (Setări → Dispozitive și Servicii → MyENGIE România → Configurare).
+Integrarea necesită o licență validă. Poți achiziționa una de la [hubinteligent.org/donate?ref=myengie](https://hubinteligent.org/donate?ref=myengie). Licența se introduce din **OptionsFlow** (Setări → Dispozitive și Servicii → MyENGIE România → Configurare).
 
 ### Pasul 3 — Descoperire automată POC-uri
 
@@ -340,7 +340,7 @@ custom_components/myengie/
 - **Home Assistant** 2025.11 sau mai nou (pattern `entry.runtime_data`)
 - **HACS** (opțional, pentru instalare ușoară)
 - **Cont MyENGIE** activ cu email + parolă — [my.engie.ro](https://my.engie.ro/)
-- **Licență** validă — [hubinteligent.org/licenta/myengie](https://hubinteligent.org/licenta/myengie)
+- **Licență** validă — [hubinteligent.org/donate?ref=myengie](https://hubinteligent.org/donate?ref=myengie)
 - **Python**: `cryptography >= 41.0.0` (dependință automată prin manifest)
 
 ---
