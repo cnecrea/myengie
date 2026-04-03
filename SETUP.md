@@ -10,7 +10,7 @@ Acest ghid acoperă fiecare pas al instalării și configurării integrării MyE
 
 - **Home Assistant** versiunea 2025.11 sau mai nouă (necesită pattern `entry.runtime_data`)
 - **Cont MyENGIE** activ — cu email și parolă funcționale pe platforma [my.engie.ro](https://my.engie.ro/)
-- **Licență** validă — de la [hubinteligent.org/licenta/myengie](https://hubinteligent.org/licenta/myengie)
+- **Licență** validă — de la [hubinteligent.org/donate?ref=myengie](https://hubinteligent.org/donate?ref=myengie)
 - **HACS** instalat (opțional, dar recomandat) — [instrucțiuni HACS](https://hacs.xyz/docs/setup/download)
 
 ---
@@ -135,7 +135,7 @@ Pentru a introduce licența:
 4. Introdu cheia de licență
 5. Click **Salvează**
 
-Licențe disponibile la: [hubinteligent.org/licenta/myengie](https://hubinteligent.org/licenta/myengie)
+Licențe disponibile la: [hubinteligent.org/donate?ref=myengie](https://hubinteligent.org/donate?ref=myengie)
 
 ### Pasul 5 — Confirmă
 
