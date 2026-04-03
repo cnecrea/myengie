@@ -230,7 +230,7 @@ POST https://gwss.engie.ro/myservices/v1/index/history → 500
 
 **Rezolvare**:
 1. Verifică cheia de licență în OptionsFlow
-2. Dacă a expirat, reînnoiește de la [hubinteligent.org/licenta/myengie](https://hubinteligent.org/licenta/myengie)
+2. Dacă a expirat, reînnoiește de la [hubinteligent.org/donate?ref=myengie](https://hubinteligent.org/donate?ref=myengie)
 3. Dacă serverul nu e accesibil, există un grace period — licența rămâne validă temporar
 
 ---
