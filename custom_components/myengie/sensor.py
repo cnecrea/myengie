@@ -702,6 +702,11 @@ class MyEngieIndexContorSensor(MyEngieInstallationBaseSensor):
         self._attr_name = "Index contor"
         self._custom_entity_id = f"sensor.{DOMAIN}_{poc}_{div_short}_index_contor_{installation_number}"
         self._attr_native_unit_of_measurement = _unit_for_division(div_short)
+        # device_class necesar pentru Energy Dashboard HA
+        if div_short == "gaz":
+            self._attr_device_class = SensorDeviceClass.GAS
+        else:
+            self._attr_device_class = SensorDeviceClass.ENERGY
 
     def _find_installation(self) -> dict | None:
         """Găsește instalația în index_readings."""
@@ -913,6 +918,11 @@ class MyEngieConsumGraficSensor(MyEngieBaseSensor):
         # Gaz: kWh = m³ × putere calorifică × coeficient corecție
         # Confirmat din APK ConsumptionGraphWidgetKt.java: R.string.unit_kwh mereu
         self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+        # device_class necesar pentru Energy Dashboard HA
+        if div_short == "gaz":
+            self._attr_device_class = SensorDeviceClass.GAS
+        else:
+            self._attr_device_class = SensorDeviceClass.ENERGY
 
     def _current_year_entries(self) -> list[dict]:
         """Returnează doar intrările din consumption_graph pentru anul curent."""
