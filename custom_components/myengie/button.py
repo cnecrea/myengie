@@ -197,7 +197,7 @@ class TrimiteIndexButton(MyEngieBaseButton):
         self._inst_detail = inst_detail
 
         self._pod = inst_detail.get("pod", "")
-        self._serial = inst_detail.get("serial", "")
+        self._serial = inst_detail.get("serial_number", inst_detail.get("serie_contor", inst_detail.get("serial", "")))
 
         self._attr_name = "Trimite index"
         self._attr_unique_id = f"{DOMAIN}_{poc}_{ds}_trimite_index_{inst_nr}"
@@ -248,14 +248,17 @@ class TrimiteIndexButton(MyEngieBaseButton):
             return
 
         # Construiește payload-ul Engie (form-urlencoded)
+        # Câmpuri confirmate din APK IndexApi.java sendIndex$lambda$8
+        # și validate cu debug_myengie.py --send-index (status 200 OK)
         payload = {
-            "poc": self._poc,
-            "division": self._division,
+            "poc_number": self._poc,
             "pa": self._pa,
             "installation_number": self._inst_nr,
-            "reading_value": str(index_value),
-            "serie_contor": self._serial,
+            "division": self._division,
+            "index": str(index_value),
         }
+        if self._serial:
+            payload["serie_contor"] = self._serial
 
         _LOGGER.info(
             "[MyENGIE:Button] Trimitere autocitire: poc=%s, division=%s, inst=%s, "
