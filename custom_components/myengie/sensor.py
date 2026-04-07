@@ -918,11 +918,10 @@ class MyEngieConsumGraficSensor(MyEngieBaseSensor):
         # Gaz: kWh = m³ × putere calorifică × coeficient corecție
         # Confirmat din APK ConsumptionGraphWidgetKt.java: R.string.unit_kwh mereu
         self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-        # device_class necesar pentru Energy Dashboard HA
-        if div_short == "gaz":
-            self._attr_device_class = SensorDeviceClass.GAS
-        else:
-            self._attr_device_class = SensorDeviceClass.ENERGY
+        # device_class ENERGY pentru ambele (gaz + elec) — unitatea e kWh
+        # SensorDeviceClass.GAS acceptă DOAR unități de volum (m³, ft³, etc.)
+        # și NU e compatibil cu kWh. GAS rămâne doar pe IndexContorSensor (m³).
+        self._attr_device_class = SensorDeviceClass.ENERGY
 
     def _current_year_entries(self) -> list[dict]:
         """Returnează doar intrările din consumption_graph pentru anul curent."""
