@@ -43,7 +43,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import MyEngieApiClient
-from .const import DEFAULT_UPDATE_INTERVAL, HEAVY_UPDATE_MULTIPLIER, MONTHS_EN
+from .const import DEFAULT_UPDATE_INTERVAL, DOMAIN, HEAVY_UPDATE_MULTIPLIER, LICENSE_DATA_KEY, MONTHS_EN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -282,7 +282,10 @@ class MyEngieCoordinator(DataUpdateCoordinator):
         # ── 4. Fetch date esențiale (paralel) ──
         # Balance details — necesită lista de contract_account_numbers
         contract_account_numbers = []
-        for poc_raw in (self.data or {}).get("_raw_pocs", []):
+        # Folosim _current_raw_pocs (setat în _async_update_data) ca sursă principală,
+        # cu fallback pe self.data pentru compatibilitate
+        raw_pocs = getattr(self, "_current_raw_pocs", None) or (self.data or {}).get("_raw_pocs", [])
+        for poc_raw in raw_pocs:
             if str(poc_raw.get("poc_number", "")) == poc_number:
                 for cc in poc_raw.get("cont_contract", []):
                     ca_nr = cc.get("contract_account_number")
@@ -427,6 +430,12 @@ class MyEngieCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self) -> dict:
         """Extrage toate datele de la API-ul MyENGIE România pentru TOATE POC-urile."""
+        # Verificare licență — nu fetchuim date dacă licența/trial nu e validă
+        license_mgr = self.hass.data.get(DOMAIN, {}).get(LICENSE_DATA_KEY)
+        if license_mgr and not license_mgr.is_valid:
+            _LOGGER.debug("[MyENGIE] Licență invalidă — se omit apelurile API")
+            return self.data or {}
+
         is_heavy = self._is_heavy
         _LOGGER.debug(
             "[MyENGIE] Actualizare (refresh=#%s, tip=%s)",
@@ -492,6 +501,9 @@ class MyEngieCoordinator(DataUpdateCoordinator):
             current_month_key = MONTHS_EN[datetime.now().month - 1]
 
             # ── 4. Fetch date pentru fiecare POC (paralel) ──
+            # Stocăm pocs_list pe instanță pentru ca _fetch_poc_data să o acceseze
+            # (la primul refresh self.data este None, deci _raw_pocs nu e disponibil)
+            self._current_raw_pocs = pocs_list
             pocs_data: dict[str, dict] = {}
             poc_tasks = []
             poc_infos = []
