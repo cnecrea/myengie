@@ -907,7 +907,7 @@ class MyEngieConsumGraficSensor(MyEngieBaseSensor):
     """
 
     _attr_icon = "mdi:chart-line"
-    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
 
     def __init__(self, coordinator, poc, div_short, div_label):
         super().__init__(coordinator, poc, div_short, div_label)
