@@ -1,9 +1,7 @@
 {
   "title": "MyENGIE Romania",
-
   "config": {
     "flow_title": "MyENGIE Romania",
-
     "step": {
       "user": {
         "title": "Connect to MyENGIE Romania account",
@@ -15,7 +13,6 @@
         }
       }
     },
-
     "error": {
       "auth_failed": "Authentication failed. Please check your email and password.",
       "maintenance": "The MyENGIE Romania server is currently under maintenance. Please try again later.",
@@ -23,15 +20,12 @@
       "unknown_error": "An unexpected error occurred while connecting to MyENGIE Romania. Please try again later.",
       "no_data": "Authentication was successful, but no data was found for this account."
     },
-
     "abort": {
       "already_configured": "This MyENGIE Romania account is already configured."
     }
   },
-
   "options": {
     "flow_title": "MyENGIE Romania settings",
-
     "step": {
       "init": {
         "title": "MyENGIE Romania Settings",
@@ -41,7 +35,6 @@
           "licenta": "License"
         }
       },
-
       "settings": {
         "title": "Account settings",
         "description": "Update your credentials and refresh interval.",
@@ -51,7 +44,6 @@
           "update_interval": "Update interval (seconds)"
         }
       },
-
       "licenta": {
         "title": "MyENGIE Romania License",
         "description": "{license_status}\n\nEnter your license key to activate or renew the integration.",
@@ -60,7 +52,6 @@
         }
       }
     },
-
     "error": {
       "auth_failed": "Authentication failed with the provided credentials.",
       "maintenance": "The MyENGIE Romania server is currently under maintenance. Please try again later.",
@@ -74,6 +65,16 @@
       "license_fingerprint_mismatch": "This license key is bound to a different installation.",
       "license_network_error": "Cannot connect to the license server. Check your internet connection.",
       "license_server_error": "License server error. Please try again later."
+    }
+  },
+  "issues": {
+    "trial_expired": {
+      "title": "Trial expired — MyENGIE România",
+      "description": "The free trial period has ended.\n\nSensors are disabled until a license is obtained.\n\n[Get a license now]({learn_more_url})"
+    },
+    "license_expired": {
+      "title": "License expired — MyENGIE România",
+      "description": "The license for this integration has expired.\n\nSensors are disabled until the license is renewed.\n\n[Renew license]({learn_more_url})"
     }
   }
 }
