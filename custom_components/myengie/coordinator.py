@@ -40,6 +40,7 @@ from datetime import datetime, timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import MyEngieApiClient
@@ -93,11 +94,11 @@ class MyEngieCoordinator(DataUpdateCoordinator):
         prev_poc = prev.get("pocs_data", {}).get(poc_number, {})
 
         # ── 1. Divisions (gaz/elec) ──
-        try:
-            divisions_data = await self.api.async_get_divisions(poc_number, pa)
-        except Exception as err:
-            _LOGGER.warning("[MyENGIE] Eroare la divisions POC %s: %s", poc_number, err)
-            divisions_data = {"gaz": [], "elec": [], "details": {}}
+        divisions_data = await self.api.async_get_divisions(poc_number, pa)
+        if not isinstance(divisions_data, dict):
+            # Fără diviziuni nu știm ce instalații are POC-ul: păstrăm datele
+            # anterioare ale POC-ului (înainte: .get() pe None → POC-ul dispărea).
+            raise UpdateFailed(f"[MyENGIE] Diviziunile POC {poc_number} nu au putut fi obținute")
 
         gaz_insts = divisions_data.get("gaz", [])
         elec_insts = divisions_data.get("elec", [])
@@ -141,6 +142,11 @@ class MyEngieCoordinator(DataUpdateCoordinator):
                     )
                 elif result:
                     index_readings["elec"].append(result)
+
+        prev_readings = prev_poc.get("index_readings", {})
+        for div_key, insts in (("gaz", gaz_insts), ("elec", elec_insts)):
+            if insts and not index_readings[div_key] and prev_readings.get(div_key):
+                index_readings[div_key] = prev_readings[div_key]
 
         # ── 2b. Index history per installation (POST v1/index/history) ──
         # Necesită autocit + serie_contor din index_readings (deja obținute la pas 2)
@@ -236,6 +242,10 @@ class MyEngieCoordinator(DataUpdateCoordinator):
                 elif result is not None:
                     index_history["elec"][str(inst_nr)] = result
 
+        for div_key in ("gaz", "elec"):
+            for inst, hist in prev_poc.get("index_history", {}).get(div_key, {}).items():
+                index_history[div_key].setdefault(inst, hist)
+
         # ── 3. Prognosis per installation ──
         prognosis = {}
 
@@ -279,6 +289,9 @@ class MyEngieCoordinator(DataUpdateCoordinator):
                 elif result:
                     prognosis[inst_nr] = result
 
+        for inst, prog in prev_poc.get("prognosis", {}).items():
+            prognosis.setdefault(inst, prog)
+
         # ── 4. Fetch date esențiale (paralel) ──
         # Balance details — necesită lista de contract_account_numbers
         contract_account_numbers = []
@@ -312,8 +325,14 @@ class MyEngieCoordinator(DataUpdateCoordinator):
         ]
 
         essential = await asyncio.gather(*essential_tasks, return_exceptions=True)
-        invoices = essential[0] if not isinstance(essential[0], Exception) else []
-        consumption_graph = essential[1] if not isinstance(essential[1], Exception) else []
+        # None / excepție = endpoint indisponibil acum → datele anterioare
+        # (înainte: None ajungea la len() → excepție → tot POC-ul dispărea)
+        invoices = essential[0]
+        if invoices is None or isinstance(invoices, Exception):
+            invoices = prev_poc.get("invoices", [])
+        consumption_graph = essential[1]
+        if consumption_graph is None or isinstance(consumption_graph, Exception):
+            consumption_graph = prev_poc.get("consumption_graph", [])
 
         for task_name, result in [
             ("invoices_history", essential[0]),
@@ -325,7 +344,7 @@ class MyEngieCoordinator(DataUpdateCoordinator):
                 )
 
         # Balance details — apel separat (necesită contract_accounts)
-        balance = {"total": "0.00", "invoices": [], "pending": []}
+        balance = prev_poc.get("balance") or {"total": "0.00", "invoices": [], "pending": []}
         if contract_account_numbers:
             try:
                 balance_result = await self.api.async_get_balance_details(contract_account_numbers)
@@ -354,6 +373,8 @@ class MyEngieCoordinator(DataUpdateCoordinator):
 
             try:
                 green_bill = await self.api.async_get_green_bill_status(poc_number, pa)
+                if green_bill is None:
+                    green_bill = prev_poc.get("green_bill", {})
             except Exception as err:
                 _LOGGER.warning("[MyENGIE] Eroare la green bill POC %s: %s", poc_number, err)
                 green_bill = prev_poc.get("green_bill", {})
@@ -391,6 +412,9 @@ class MyEngieCoordinator(DataUpdateCoordinator):
                         )
                     elif result:
                         inspection_data[pod_code] = result
+
+        for pod_code, insp in prev_poc.get("inspection", {}).items():
+            inspection_data.setdefault(pod_code, insp)
 
         _LOGGER.debug(
             "[MyENGIE] Fetch POC %s (PA %s): gaz=%d, elec=%d, instalații=%d, "
@@ -445,6 +469,9 @@ class MyEngieCoordinator(DataUpdateCoordinator):
         try:
             # ── 1. Asigurăm autentificarea ──
             if not await self.api.async_ensure_authenticated():
+                if self.api.auth_rejected:
+                    # Parolă schimbată: HA cere reautentificarea (fără reîncercări inutile)
+                    raise ConfigEntryAuthFailed("ENGIE a respins email-ul sau parola")
                 raise UpdateFailed(
                     "[MyENGIE] Autentificare eșuată — verifică credențialele "
                     "sau dacă serverul Engie este în mentenanță"
@@ -487,10 +514,16 @@ class MyEngieCoordinator(DataUpdateCoordinator):
             pocs_list = []
             try:
                 cp_data = await self.api.async_get_consumption_places()
+                if cp_data is None:
+                    # ENGIE nu a răspuns: entitățile devin indisponibile și își
+                    # păstrează ultimele valori (înainte: „succes" cu zero POC-uri)
+                    raise UpdateFailed("[MyENGIE] Locurile de consum nu au putut fi obținute")
                 if cp_data and isinstance(cp_data, dict):
                     pocs_list = cp_data.get("places_of_consumption", []) or []
                 elif cp_data and isinstance(cp_data, list):
                     pocs_list = cp_data
+            except UpdateFailed:
+                raise
             except Exception as err:
                 _LOGGER.warning("[MyENGIE] Eroare la consumption places: %s", err)
                 raise UpdateFailed(f"[MyENGIE] Nu s-au putut obține POC-urile: {err}") from err
@@ -521,14 +554,22 @@ class MyEngieCoordinator(DataUpdateCoordinator):
 
             if poc_tasks:
                 results = await asyncio.gather(*poc_tasks, return_exceptions=True)
+                prev_pocs = (self.data or {}).get("pocs_data", {})
+                failed = 0
                 for (poc_number, pa), result in zip(poc_infos, results):
                     if isinstance(result, Exception):
+                        failed += 1
                         _LOGGER.warning(
                             "[MyENGIE] Eroare la fetch POC %s (PA %s): %s",
                             poc_number, pa, result,
                         )
+                        # Un POC care nu a răspuns acum își păstrează datele anterioare
+                        if poc_number in prev_pocs:
+                            pocs_data[poc_number] = prev_pocs[poc_number]
                     else:
                         pocs_data[poc_number] = result
+                if failed == len(poc_tasks):
+                    raise UpdateFailed("[MyENGIE] Niciun loc de consum nu a putut fi actualizat")
 
             # ── 5. Incrementăm counter și persistăm token ──
             self._refresh_count += 1
@@ -558,7 +599,7 @@ class MyEngieCoordinator(DataUpdateCoordinator):
                 "_raw_pocs": pocs_list,
             }
 
-        except UpdateFailed:
+        except (UpdateFailed, ConfigEntryAuthFailed):
             raise
         except Exception as err:
             _LOGGER.exception("[MyENGIE] Eroare la actualizare: %s", err)

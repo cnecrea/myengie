@@ -435,7 +435,7 @@ class MyEngieBalanceSensor(MyEngieBaseSensor):
     @property
     def native_value(self) -> Any:
         if not self._license_valid:
-            return "Licență necesară"
+            return None  # senzor numeric: fără licență → necunoscut
         poc_d = self._poc_data()
         balance = poc_d.get("balance", {})
         total = balance.get("total", 0)
@@ -570,7 +570,7 @@ class MyEngieArhivaFacturiSensor(MyEngieBaseSensor):
     @property
     def native_value(self) -> Any:
         if not self._license_valid:
-            return "Licență necesară"
+            return None  # senzor numeric: fără licență → necunoscut
         return len(self._invoices_current_year())
 
     @property
@@ -649,7 +649,7 @@ class MyEngieArhivaPlatiSensor(MyEngieBaseSensor):
     @property
     def native_value(self) -> Any:
         if not self._license_valid:
-            return "Licență necesară"
+            return None  # senzor numeric: fără licență → necunoscut
         return len(self._payments_current_year())
 
     @property
@@ -718,7 +718,7 @@ class MyEngieIndexContorSensor(MyEngieInstallationBaseSensor):
     @property
     def native_value(self) -> Any:
         if not self._license_valid:
-            return "Licență necesară"
+            return None  # senzor numeric: fără licență → necunoscut
         inst = self._find_installation()
         if inst:
             last_index = inst.get("last_index")
@@ -943,7 +943,7 @@ class MyEngieConsumGraficSensor(MyEngieBaseSensor):
     @property
     def native_value(self) -> Any:
         if not self._license_valid:
-            return "Licență necesară"
+            return None  # senzor numeric: fără licență → necunoscut
         entries = self._current_year_entries()
         if not entries:
             return 0
@@ -1055,7 +1055,7 @@ class MyEngieIstoricIndexSensor(MyEngieInstallationBaseSensor):
     @property
     def native_value(self) -> Any:
         if not self._license_valid:
-            return "Licență necesară"
+            return None  # senzor numeric: fără licență → necunoscut
         entries = self._get_history_entries()
         return len(entries) if entries else 0
 

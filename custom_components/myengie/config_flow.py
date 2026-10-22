@@ -9,12 +9,13 @@ Licența se gestionează din OptionsFlow (pasul "licenta").
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigFlowResult
+from homeassistant.config_entries import ConfigEntryState, ConfigFlowResult
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import selector
@@ -27,6 +28,7 @@ from .const import (
     LICENSE_DATA_KEY,
     LICENSE_PURCHASE_URL,
 )
+from . import _signature
 from .api import MyEngieApiClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -52,6 +54,45 @@ def _store_token(hass, username: str, api: MyEngieApiClient) -> None:
 
 # ------------------------------------------------------------------
 # ConfigFlow
+def _update_and_reload(
+    hass, entry: config_entries.ConfigEntry, data: dict[str, Any], **kwargs: Any
+) -> None:
+    """Salvează intrarea și o reîncarcă o singură dată.
+
+    Listener-ul de update reîncarcă singur intrarea când s-a schimbat
+    configurația (fără token). Altfel — ex: doar un token nou, sau intrarea
+    nu rulează (setup eșuat) — reîncărcăm aici. (Înainte: update + reload
+    explicit = două reload-uri.) Decizia se ia ÎNAINTE de update: listener-ul
+    pornește imediat.
+    """
+    runtime = getattr(entry, "runtime_data", None)
+    listener_reloads = (
+        entry.state is ConfigEntryState.LOADED
+        and runtime is not None
+        and getattr(runtime, "config_signature", None) != _signature(data, entry.options)
+    )
+    hass.config_entries.async_update_entry(entry, data=data, **kwargs)
+    if not listener_reloads:
+        hass.config_entries.async_schedule_reload(entry.entry_id)
+
+
+_ETICHETE_TIP_LICENTA = {
+    # Tipurile emise de WebAPI (LICENSE_DURATION)
+    "perpetual": ("perpetuă", "perpetual"),
+    "annual": ("anuală", "annual"),
+    "semi_annual": ("semestrială", "semi-annual"),
+    "monthly": ("lunară", "monthly"),
+}
+
+
+def _eticheta_tip_licenta(tip: str | None, is_ro: bool) -> str:
+    """Eticheta afișată pentru tipul de licență primit de la server."""
+    if not tip:
+        return "necunoscut" if is_ro else "unknown"
+    ro, en = _ETICHETE_TIP_LICENTA.get(tip, (tip, tip))
+    return ro if is_ro else en
+
+
 # ------------------------------------------------------------------
 
 class MyEngieConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -117,6 +158,44 @@ class MyEngieConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user", data_schema=schema, errors=errors
         )
 
+    # ─────────────────────────────────────────
+    # Reautentificare (parolă schimbată)
+    # ─────────────────────────────────────────
+    async def async_step_reauth(
+        self, entry_data: Mapping[str, Any]
+    ) -> ConfigFlowResult:
+        """Pornit de Home Assistant când ENGIE respinge credențialele salvate."""
+        self._reauth_username = entry_data["username"]
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Parola nouă → login → salvare + reload."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            password = user_input["password"]
+            api = MyEngieApiClient(
+                async_get_clientsession(self.hass), self._reauth_username, password
+            )
+            result = await api.async_login()
+            if result == MyEngieApiClient.LOGIN_OK:
+                entry = self._get_reauth_entry()
+                _update_and_reload(
+                    self.hass,
+                    entry,
+                    {**entry.data, "password": password, "token_data": api.export_token_data()},
+                )
+                return self.async_abort(reason="reauth_successful")
+            errors["base"] = result
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema({vol.Required("password"): str}),
+            errors=errors,
+            description_placeholders={"username": self._reauth_username},
+        )
+
     @staticmethod
     @callback
     def async_get_options_flow(
@@ -175,7 +254,7 @@ class MyEngieOptionsFlow(config_entries.OptionsFlow):
         if server_status == "licensed":
             from datetime import datetime
 
-            tip = mgr.license_type or "necunoscut"
+            tip = _eticheta_tip_licenta(mgr.license_type, True)
             status_lines = [f"✅ Licență activă ({tip})"]
 
             if mgr.license_key_masked:
@@ -192,7 +271,7 @@ class MyEngieOptionsFlow(config_entries.OptionsFlow):
                     mgr.license_expires_at
                 ).strftime("%d.%m.%Y %H:%M")
                 status_lines.append(f"📅 Expiră la: {exp_date}")
-            elif tip == "perpetual":
+            elif mgr.license_type == "perpetual":
                 status_lines.append("Valabilitate: nelimitată (perpetuă)")
 
             description_placeholders["license_status"] = "\n".join(
@@ -274,15 +353,7 @@ class MyEngieOptionsFlow(config_entries.OptionsFlow):
                         persistent_notification,
                     )
 
-                    _LICENSE_TYPE_RO = {
-                        "monthly": "lunară",
-                        "yearly": "anuală",
-                        "perpetual": "perpetuă",
-                        "trial": "evaluare",
-                    }
-                    tip_ro = _LICENSE_TYPE_RO.get(
-                        mgr.license_type, mgr.license_type or "necunoscut"
-                    )
+                    tip_ro = _eticheta_tip_licenta(mgr.license_type, True)
 
                     persistent_notification.async_create(
                         self.hass,
@@ -297,14 +368,16 @@ class MyEngieOptionsFlow(config_entries.OptionsFlow):
 
                 # Mapare erori API
                 api_error = result.get("error", "unknown_error")
+                # Codurile WebAPI /activate + erorile locale
                 error_map = {
                     "invalid_key": "license_key_invalid",
                     "already_used": "license_already_used",
                     "expired_key": "license_key_expired",
                     "fingerprint_mismatch": "license_fingerprint_mismatch",
-                    "invalid_signature": "license_server_error",
                     "network_error": "license_network_error",
-                    "server_error": "license_server_error",
+                    "http_502": "license_network_error",
+                    "http_503": "license_network_error",  # server temporar ocupat
+                    "http_504": "license_network_error",
                 }
                 errors["base"] = error_map.get(api_error, "license_server_error")
 
@@ -342,7 +415,14 @@ class MyEngieOptionsFlow(config_entries.OptionsFlow):
             session = async_get_clientsession(self.hass)
             self._api = MyEngieApiClient(session, username, password)
 
-            login_result = await self._api.async_login()
+            conflict = any(
+                e.entry_id != self.config_entry.entry_id
+                and e.unique_id == username.lower()
+                for e in self.hass.config_entries.async_entries(DOMAIN)
+            )
+            login_result = (
+                "already_configured" if conflict else await self._api.async_login()
+            )
 
             if login_result == MyEngieApiClient.LOGIN_OK:
                 _store_token(self.hass, username, self._api)
@@ -355,15 +435,14 @@ class MyEngieOptionsFlow(config_entries.OptionsFlow):
                     "update_interval": update_interval,
                     "token_data": self._api.export_token_data(),
                 })
-                self.hass.config_entries.async_update_entry(
-                    self.config_entry, data=new_data
+                _update_and_reload(
+                    self.hass,
+                    self.config_entry,
+                    new_data,
+                    title=f"MyENGIE România ({username})",
+                    unique_id=username.lower(),
                 )
-
-                await self.hass.config_entries.async_reload(
-                    self.config_entry.entry_id
-                )
-
-                return self.async_create_entry(data={})
+                return self.async_create_entry(data=dict(self.config_entry.options))
             else:
                 errors["base"] = login_result
 

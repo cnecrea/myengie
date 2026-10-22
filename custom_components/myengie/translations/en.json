@@ -11,6 +11,13 @@
           "password": "Password",
           "update_interval": "Update interval (seconds)"
         }
+      },
+      "reauth_confirm": {
+        "title": "MyENGIE România — sign in again",
+        "description": "ENGIE rejected the saved password for {username}. Enter the current password.",
+        "data": {
+          "password": "Password"
+        }
       }
     },
     "error": {
@@ -21,7 +28,8 @@
       "no_data": "Authentication was successful, but no data was found for this account."
     },
     "abort": {
-      "already_configured": "This MyENGIE Romania account is already configured."
+      "already_configured": "This MyENGIE Romania account is already configured.",
+      "reauth_successful": "Re-authentication successful."
     }
   },
   "options": {
@@ -64,7 +72,8 @@
       "license_key_expired": "This license key has expired.",
       "license_fingerprint_mismatch": "This license key is bound to a different installation.",
       "license_network_error": "Cannot connect to the license server. Check your internet connection.",
-      "license_server_error": "License server error. Please try again later."
+      "license_server_error": "License server error. Please try again later.",
+      "already_configured": "This account is already configured in another entry."
     }
   },
   "issues": {

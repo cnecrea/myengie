@@ -13,8 +13,11 @@ from typing import Any
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import ATTRIBUTION, DOMAIN, LICENSE_DATA_KEY
 from .coordinator import MyEngieCoordinator
@@ -74,6 +77,13 @@ async def async_setup_entry(
     mgr = hass.data.get(DOMAIN, {}).get(LICENSE_DATA_KEY)
     if not mgr or not mgr.is_valid:
         _LOGGER.debug("[MyENGIE:Button] Licență invalidă — nu se creează butoane")
+        # Butoanele create anterior ar rămâne orfane („indisponibile") în registry
+        registru = er.async_get(hass)
+        for entry_reg in er.async_entries_for_config_entry(
+            registru, config_entry.entry_id
+        ):
+            if entry_reg.domain == "button":
+                registru.async_remove(entry_reg.entity_id)
         return
 
     data = coordinator.data or {}
@@ -128,8 +138,12 @@ def _find_installation_detail(details: dict, inst_nr: str) -> dict:
 # CLASĂ DE BAZĂ — PATTERN IDENTIC CU VREAULANOVA
 # ═══════════════════════════════════════════════
 
-class MyEngieBaseButton(ButtonEntity):
-    """Bază pentru toate butoanele MyENGIE România — custom entity_id."""
+class MyEngieBaseButton(CoordinatorEntity[MyEngieCoordinator], ButtonEntity):
+    """Bază pentru toate butoanele MyENGIE România — custom entity_id.
+
+    CoordinatorEntity: disponibilitatea se reevaluează la fiecare actualizare
+    (înainte rămânea cea de la pornire).
+    """
 
     _attr_has_entity_name = False
 
@@ -140,6 +154,7 @@ class MyEngieBaseButton(ButtonEntity):
         div_short: str = "gaz",
         div_label: str = "Gaz",
     ) -> None:
+        super().__init__(coordinator)
         self._coordinator = coordinator
         self._poc = poc
         self._div_short = div_short
@@ -213,39 +228,42 @@ class TrimiteIndexButton(MyEngieBaseButton):
         """Butonul e disponibil doar dacă licența e validă și coordinator-ul e ok."""
         return self._license_valid and self._coordinator.last_update_success
 
+    @property
+    def _helper_entity_id(self) -> str:
+        """Helperul input_number din care se citește indexul de trimis."""
+        return f"input_number.{DOMAIN}_{self._poc}_{self._div_short}_{self._inst_nr}_index"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Helperul de creat — ca utilizatorul să știe exact ce ID să folosească."""
+        return {"Helper index": self._helper_entity_id, "Instalație": self._inst_nr}
+
     async def async_press(self) -> None:
         """Trimite autocitirea la MyENGIE România API.
 
         Engie folosește POST /v1/index cu form-urlencoded body.
         Parametrii: poc, division, pa, installation_number, reading_value, serie_contor.
+        Orice eșec ridică HomeAssistantError → mesajul apare în interfață
+        (înainte erorile ajungeau doar în log și apăsarea părea reușită).
         """
         if not self._license_valid:
-            _LOGGER.warning(
-                "[MyENGIE:Button] Licență invalidă — trimiterea indexului nu e posibilă."
-            )
-            return
+            raise HomeAssistantError("Licență invalidă — trimiterea indexului nu e posibilă.")
 
         # Citește valoarea din input_number entity
-        input_entity_id = (
-            f"input_number.{DOMAIN}_{self._poc}_{self._div_short}_{self._inst_nr}_index"
-        )
-        state = self._coordinator.hass.states.get(input_entity_id)
-
+        input_entity_id = self._helper_entity_id
+        state = self.hass.states.get(input_entity_id)
         if not state or state.state in ("unknown", "unavailable"):
-            _LOGGER.error(
-                "[MyENGIE:Button] Entitatea %s nu există sau nu are valoare.",
-                input_entity_id,
+            raise HomeAssistantError(
+                f"Helperul {input_entity_id} nu există sau nu are valoare. "
+                "Creați un input_number cu acest ID și introduceți indexul."
             )
-            return
 
         try:
             index_value = int(float(state.state))
-        except (ValueError, TypeError):
-            _LOGGER.error(
-                "[MyENGIE:Button] Valoare invalidă în %s: %s",
-                input_entity_id, state.state,
-            )
-            return
+        except (ValueError, TypeError) as err:
+            raise HomeAssistantError(
+                f"Valoare invalidă în {input_entity_id}: {state.state}"
+            ) from err
 
         # Construiește payload-ul Engie (form-urlencoded)
         # Câmpuri confirmate din APK IndexApi.java sendIndex$lambda$8
@@ -268,14 +286,18 @@ class TrimiteIndexButton(MyEngieBaseButton):
 
         result = await self._coordinator.api_client.async_submit_self_reading(payload)
 
-        if result:
-            _LOGGER.info(
-                "[MyENGIE:Button] Autocitire trimisă cu succes pentru inst %s.",
-                self._inst_nr,
+        if not result:
+            raise HomeAssistantError(
+                f"Trimiterea autocitirii a eșuat pentru instalația {self._inst_nr} "
+                "(ENGIE nu a răspuns)."
             )
-            await self._coordinator.async_request_refresh()
-        else:
-            _LOGGER.error(
-                "[MyENGIE:Button] Trimiterea autocitirilor a eșuat pentru inst %s.",
-                self._inst_nr,
-            )
+        if isinstance(result, dict) and result.get("error") is True:
+            # Răspuns HTTP 200 cu eroare de validare (ex: index mai mic decât cel anterior)
+            detalii = result.get("errors") or result.get("message") or result
+            raise HomeAssistantError(f"ENGIE a respins indexul {index_value}: {detalii}")
+
+        _LOGGER.info(
+            "[MyENGIE:Button] Autocitire trimisă cu succes pentru inst %s.",
+            self._inst_nr,
+        )
+        await self._coordinator.async_request_refresh()

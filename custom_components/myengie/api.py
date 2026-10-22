@@ -63,6 +63,11 @@ class MyEngieApiClient:
         self._token_obtained_at: float = 0.0
         self._token_expires_in: int = TOKEN_MAX_AGE
         self._auth_lock = asyncio.Lock()
+        self._token_generation: int = 0
+        # Token marcat expirat (401 / token salvat fără vârstă) — păstrat pentru refresh
+        self._force_refresh: bool = False
+        # Ultimul login a fost respins pentru credențiale (parolă schimbată)
+        self._auth_rejected: bool = False
 
         # User data din login
         self._user_data: dict | None = None
@@ -88,6 +93,11 @@ class MyEngieApiClient:
     def has_token(self) -> bool:
         return self._token is not None
 
+    @property
+    def auth_rejected(self) -> bool:
+        """True dacă ENGIE a respins credențialele la ultimul login."""
+        return self._auth_rejected
+
     def is_token_valid(self) -> bool:
         """Verifică dacă token-ul e valid (există și nu a expirat).
 
@@ -95,14 +105,21 @@ class MyEngieApiClient:
             Instant.now().plus(2, MINUTES).getEpochSecond() <= token.validUntil
         Noi folosim un buffer de TOKEN_REFRESH_THRESHOLD (5 min) ca marjă de siguranță.
         """
-        if not self._token:
+        if not self._token or self._force_refresh:
             return False
         age = time.monotonic() - self._token_obtained_at
         return age < (self._token_expires_in - TOKEN_REFRESH_THRESHOLD)
 
-    def _invalidate_token(self) -> None:
-        """Marchează token-ul curent ca invalid (forțează re-auth la next request)."""
-        self._token_obtained_at = 0.0
+    def _invalidate_token(self, generation: int | None = None) -> None:
+        """Marchează token-ul curent ca invalid (forțează re-auth la next request).
+
+        Înainte: token_obtained_at=0, care după o repornire recentă a sistemului
+        (monotonic mic) lăsa token-ul respins să pară încă valid. Cu `generation`:
+        un 401 primit de o cerere pornită cu un token vechi nu invalidează token-ul
+        nou obținut între timp de altă cerere paralelă.
+        """
+        if generation is None or generation == self._token_generation:
+            self._force_refresh = True
 
     # ──────────────────────────────────────────
     # Headers — identic cu debug_myengie.py
@@ -223,6 +240,11 @@ class MyEngieApiClient:
                         "Login eșuat: status=%s, email=%s",
                         resp.status, self._email,
                     )
+                    if resp.status >= 500:
+                        # Server ENGIE indisponibil — NU credențiale greșite
+                        # (înainte apărea „autentificare eșuată" la orice pană)
+                        return self.LOGIN_MAINTENANCE
+                    self._auth_rejected = True
                     return self.LOGIN_AUTH_FAILED
 
                 data = await self._parse_json(resp)
@@ -241,6 +263,7 @@ class MyEngieApiClient:
                         self._email,
                         data.get("errors", {}),
                     )
+                    self._auth_rejected = True
                     return self.LOGIN_AUTH_FAILED
 
                 # Extrage payload-ul din data.data
@@ -267,6 +290,9 @@ class MyEngieApiClient:
                 self._refresh_token = payload.get("refresh_token") or data.get("refresh_token")
 
                 self._token_obtained_at = time.monotonic()
+                self._token_generation += 1
+                self._force_refresh = False
+                self._auth_rejected = False
 
                 # Expirare — APK: Instant.now().plusSeconds(Long.parseLong(exp)).getEpochSecond()
                 # Deci exp e DURATĂ în secunde (ex: 7200), NU epoch timestamp
@@ -381,6 +407,8 @@ class MyEngieApiClient:
                 if new_refresh:
                     self._refresh_token = new_refresh
                 self._token_obtained_at = time.monotonic()
+                self._token_generation += 1
+                self._force_refresh = False
 
                 # expires_in = durată în secunde (ex: 7200)
                 # APK: Instant.now().plusSeconds(expires_in).getEpochSecond()
@@ -460,6 +488,7 @@ class MyEngieApiClient:
             return None
 
         for attempt in range(2):
+            generation = self._token_generation
             try:
                 async with self._session.get(
                     url,
@@ -475,7 +504,7 @@ class MyEngieApiClient:
                             "[MyENGIE] 401 la GET %s — invalidez token și reîncerc",
                             url,
                         )
-                        self._invalidate_token()
+                        self._invalidate_token(generation)
                         if await self.async_ensure_authenticated():
                             continue  # retry cu token nou
                         _LOGGER.warning("GET %s → 401 (re-auth eșuat)", url)
@@ -502,6 +531,7 @@ class MyEngieApiClient:
             return None
 
         for attempt in range(2):
+            generation = self._token_generation
             try:
                 headers = self._auth_headers()
 
@@ -522,7 +552,7 @@ class MyEngieApiClient:
                                 "[MyENGIE] 401 la POST %s — invalidez token și reîncerc",
                                 url,
                             )
-                            self._invalidate_token()
+                            self._invalidate_token(generation)
                             if await self.async_ensure_authenticated():
                                 continue
                             _LOGGER.warning("POST %s → 401 (re-auth eșuat)", url)
@@ -545,7 +575,7 @@ class MyEngieApiClient:
                                 "[MyENGIE] 401 la POST %s — invalidez token și reîncerc",
                                 url,
                             )
-                            self._invalidate_token()
+                            self._invalidate_token(generation)
                             if await self.async_ensure_authenticated():
                                 continue
                             _LOGGER.warning("POST %s → 401 (re-auth eșuat)", url)
@@ -891,8 +921,12 @@ class MyEngieApiClient:
         self._crm_account = token_data.get("crm_account")
 
         wall = token_data.get("obtained_at_wall")
+        self._force_refresh = False
         if wall:
             age = max(0.0, time.time() - wall)
             self._token_obtained_at = time.monotonic() - age
         else:
-            self._token_obtained_at = 0.0
+            # Vârstă necunoscută → refresh la prima cerere
+            self._token_obtained_at = time.monotonic()
+            self._force_refresh = True
+        self._token_generation += 1
